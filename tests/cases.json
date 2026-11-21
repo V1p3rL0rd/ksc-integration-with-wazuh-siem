@@ -1,0 +1,77 @@
+{
+  "_comment": "Each case runs in its own wazuh-logtest session. 'events' are fed in order; 'expect' checks the LAST event, 'expect_any' passes if ANY event in the case matches. Field values are compared exactly as wazuh-logtest prints them (KSC escapes backslashes in structured data, so they appear doubled).",
+  "cases": [
+    {
+      "name": "malware detected (KES for Windows, EICAR)",
+      "events": [{"file": "samples/kes_virus_found.log"}],
+      "expect": {
+        "decoder": "kaspersky-ksc",
+        "rule_id": "100701",
+        "level": 10,
+        "fields": {
+          "ksc.event_type": "GNRL_EV_VIRUS_FOUND",
+          "ksc.event_name": "Обнаружен вредоносный объект",
+          "ksc.host": "PC-TEST01",
+          "ksc.host_ip": "192.0.2.10",
+          "ksc.fqdn": "pc-test01.example.local",
+          "ksc.product": "KES|11.0.0.0",
+          "ksc.group": "Workstations",
+          "ksc.threat": "EICAR-Test-File",
+          "ksc.user": "EXAMPLE\\\\testuser",
+          "ksc.object": "C:\\\\Users\\\\testuser\\\\Desktop\\\\eicar.txt"
+        }
+      }
+    },
+    {
+      "name": "companion event 'cannot disinfect' stays below Telegram threshold",
+      "events": [{"file": "samples/kes_object_notcured.log"}],
+      "expect": {
+        "decoder": "kaspersky-ksc",
+        "rule_id": "100702",
+        "level": 3,
+        "fields": {"ksc.event_type": "GNRL_EV_OBJECT_NOTCURED"}
+      }
+    },
+    {
+      "name": "catch-all: any other exported KSC event goes to level 10 (synthetic event)",
+      "events": [{"file": "samples/synthetic_unknown_event.log"}],
+      "expect": {
+        "decoder": "kaspersky-ksc",
+        "rule_id": "100709",
+        "level": 10,
+        "fields": {
+          "ksc.event_type": "TEST_EV_SYNTHETIC",
+          "ksc.host": "PC-TEST02",
+          "ksc.host_ip": "192.0.2.11"
+        }
+      }
+    },
+    {
+      "name": "negative: non-KSC syslog is not decoded as KSC",
+      "events": [{"file": "samples/non_ksc_sshd.log"}],
+      "expect": {"decoder_not": "kaspersky-ksc"}
+    },
+    {
+      "name": "correlation: malware on several distinct hosts -> outbreak rule 100710",
+      "events": [
+        {"file": "samples/kes_virus_found.log"},
+        {"file": "samples/kes_virus_found.log", "replace": {"PC-TEST01": "PC-TEST02", "pc-test01": "pc-test02", "192.0.2.10": "192.0.2.11"}},
+        {"file": "samples/kes_virus_found.log", "replace": {"PC-TEST01": "PC-TEST03", "pc-test01": "pc-test03", "192.0.2.10": "192.0.2.12"}},
+        {"file": "samples/kes_virus_found.log", "replace": {"PC-TEST01": "PC-TEST04", "pc-test01": "pc-test04", "192.0.2.10": "192.0.2.13"}},
+        {"file": "samples/kes_virus_found.log", "replace": {"PC-TEST01": "PC-TEST05", "pc-test01": "pc-test05", "192.0.2.10": "192.0.2.14"}}
+      ],
+      "expect_any": {"rule_id": "100710", "level": 13}
+    },
+    {
+      "name": "correlation must NOT fire for repeated detections on ONE host",
+      "events": [
+        {"file": "samples/kes_virus_found.log"},
+        {"file": "samples/kes_virus_found.log"},
+        {"file": "samples/kes_virus_found.log"},
+        {"file": "samples/kes_virus_found.log"},
+        {"file": "samples/kes_virus_found.log"}
+      ],
+      "expect_none": {"rule_id": "100710"}
+    }
+  ]
+}

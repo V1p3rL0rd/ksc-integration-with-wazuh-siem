@@ -1,0 +1,53 @@
+Starting wazuh-logtest v4.14.5
+Type one log per line
+
+
+** Wazuh-Logtest: WARNING: (7617): Signature ID '59400' was not found and will be ignored in the 'if_sid' option of rule '100055'.
+** Wazuh-Logtest: WARNING: (7619): Empty 'if_sid' value. Rule '100055' will be ignored.
+
+**Phase 1: Completed pre-decoding.
+	full event: '1 2026-11-21T15:17:00.000Z pc-test01.example.local KES|11.0.0.0 - GNRL_EV_VIRUS_FOUND [event@23668 p2="C:\\Users\\testuser\\Desktop\\eicar.txt" et="GNRL_EV_VIRUS_FOUND" hdn="PC-TEST01"] text'
+
+**Phase 2: Completed decoding.
+	name: 'kaspersky-ksc'
+	ksc.event_name: 'Обнаружен вредоносный объект'
+	ksc.event_type: 'GNRL_EV_VIRUS_FOUND'
+	ksc.host: 'PC-TEST01'
+	ksc.host_ip: '192.0.2.10'
+	ksc.object: 'C:\\Users\\testuser\\Desktop\\eicar.txt'
+	ksc.user: 'EXAMPLE\\testuser'
+
+**Phase 3: Completed filtering (rules).
+	id: '100701'
+	level: '10'
+	description: 'KSC: вредоносный объект EICAR-Test-File на PC-TEST01 (192.0.2.10), пользователь EXAMPLE\\testuser'
+	groups: '['kaspersky', 'ksc', 'ksc_malware']'
+	firedtimes: '1'
+	mail: 'False'
+**Alert to be generated.
+
+
+**Phase 1: Completed pre-decoding.
+	full event: '1 2026-11-21T15:17:08.000Z pc-test01.example.local KES|11.0.0.0 - GNRL_EV_OBJECT_NOTCURED [event@23668 et="GNRL_EV_OBJECT_NOTCURED"] text'
+
+**Phase 2: Completed decoding.
+	name: 'kaspersky-ksc'
+	ksc.event_type: 'GNRL_EV_OBJECT_NOTCURED'
+
+**Phase 3: Completed filtering (rules).
+	id: '100702'
+	level: '3'
+	description: 'KSC: лечение невозможно, объект удалён: EICAR-Test-File на PC-TEST01'
+	groups: '['kaspersky', 'ksc']'
+	firedtimes: '1'
+	mail: 'False'
+
+**Phase 1: Completed pre-decoding.
+	full event: 'Nov 21 18:00:00 wazuh-manager sshd[1234]: Accepted publickey for testuser from 192.0.2.50 port 50000 ssh2'
+	timestamp: 'Nov 21 18:00:00'
+	hostname: 'wazuh-manager'
+	program_name: 'sshd'
+
+**Phase 2: Completed decoding.
+	No decoder matched.
+

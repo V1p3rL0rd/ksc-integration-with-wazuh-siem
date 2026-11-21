@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint, unit tests, sensitive data scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Sensitive data scan (private IPs, tokens, keys)
+        run: tools/check-sensitive.sh
+
+      - name: ShellCheck
+        run: shellcheck -x deploy.sh tools/check-sensitive.sh .githooks/pre-commit
+
+      - name: XML well-formedness (decoders, rules)
+        run: |
+          sudo apt-get install -y -qq libxml2-utils >/dev/null
+          for f in wazuh/decoders/*.xml wazuh/rules/*.xml; do
+            # Wazuh files may contain several top-level elements: wrap them for the check
+            { echo '<root>'; cat "$f"; echo '</root>'; } | xmllint --noout - && echo "OK  $f"
+          done
+
+      - name: Python unit tests (parser, ossec.conf editing, repo consistency)
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+  logtest:
+    name: wazuh-logtest on a real Wazuh manager (Docker)
+    needs: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      WAZUH_VERSION: "4.14.5"
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Start wazuh-manager ${{ env.WAZUH_VERSION }}
+        run: |
+          docker run -d --name wazuh --hostname wazuh-manager "wazuh/wazuh-manager:${WAZUH_VERSION}"
+          for i in $(seq 1 60); do
+            if docker exec wazuh /var/ossec/bin/wazuh-control status 2>/dev/null | grep -q 'wazuh-analysisd is running'; then
+              echo "analysisd is running after $((i * 5))s"; exit 0
+            fi
+            sleep 5
+          done
+          docker logs --tail 100 wazuh; exit 1
+
+      - name: Install decoder and rules
+        run: |
+          docker cp wazuh/decoders/kaspersky_ksc.xml wazuh:/var/ossec/etc/decoders/kaspersky_ksc.xml
+          docker cp wazuh/rules/kaspersky_ksc_rules.xml wazuh:/var/ossec/etc/rules/kaspersky_ksc_rules.xml
+          docker exec wazuh chown wazuh:wazuh /var/ossec/etc/decoders/kaspersky_ksc.xml /var/ossec/etc/rules/kaspersky_ksc_rules.xml
+          docker exec wazuh chmod 660 /var/ossec/etc/decoders/kaspersky_ksc.xml /var/ossec/etc/rules/kaspersky_ksc_rules.xml
+          docker exec wazuh /var/ossec/bin/wazuh-analysisd -t
+          docker exec wazuh /var/ossec/bin/wazuh-control restart
+          for i in $(seq 1 60); do
+            if docker exec wazuh /var/ossec/bin/wazuh-control status 2>/dev/null | grep -q 'wazuh-analysisd is running'; then exit 0; fi
+            sleep 5
+          done
+          exit 1
+
+      - name: Run tests/cases.json through wazuh-logtest
+        run: |
+          docker cp tests wazuh:/tmp/ksc-tests
+          docker exec wazuh /var/ossec/framework/python/bin/python3 /tmp/ksc-tests/run_logtest.py \
+            --logtest /var/ossec/bin/wazuh-logtest --cases /tmp/ksc-tests/cases.json -v
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          docker exec wazuh tail -n 100 /var/ossec/logs/ossec.log || true
+          docker logs --tail 100 wazuh || true

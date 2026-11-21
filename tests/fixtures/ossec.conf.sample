@@ -1,0 +1,40 @@
+<ossec_config>
+  <global>
+    <jsonout_output>yes</jsonout_output>
+    <alerts_log>yes</alerts_log>
+  </global>
+
+  <remote>
+    <connection>secure</connection>
+    <port>1514</port>
+    <protocol>tcp</protocol>
+    <queue_size>131072</queue_size>
+  </remote>
+
+  <!-- KSC: export of events to SIEM (Syslog TCP), only from the KSC server -->
+  <remote>
+    <connection>syslog</connection>
+    <port>514</port>
+    <protocol>tcp</protocol>
+    <allowed-ips>192.0.2.5/32</allowed-ips>
+    <local_ip>192.0.2.7</local_ip>
+  </remote>
+
+  <!-- Policy monitoring -->
+  <rootcheck>
+    <disabled>no</disabled>
+  </rootcheck>
+
+  <cluster>
+    <name>wazuh</name>
+    <node_type>master</node_type>
+    <disabled>yes</disabled>
+  </cluster>
+</ossec_config>
+
+<ossec_config>
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/var/ossec/logs/active-responses.log</location>
+  </localfile>
+</ossec_config>

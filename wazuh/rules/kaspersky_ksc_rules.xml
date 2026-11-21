@@ -1,0 +1,54 @@
+<!--
+  Managed by ksc-integration-with-wazuh-siem. Do not edit on the server: changes are overwritten by deploy.sh.
+
+  Kaspersky Security Center -> Wazuh rules. Decoder: etc/decoders/kaspersky_ksc.xml
+  Event selection is done in KSC (KES/KESL policies, "Mark for export to SIEM system via syslog").
+  Everything exported => level 10 via 100709. Refinements and exceptions MUST be CHILD rules of 100709
+  (sibling rules are not evaluated in file order: a higher-level sibling wins).
+  Rule ID range: 100700-100799
+
+  Tree:
+    100700  base, any KSC event                                level 0
+     └─ 100709  everything selected for export in KSC          level 10
+         ├─ 100701  GNRL_EV_VIRUS_FOUND (detailed description) level 10
+         └─ 100702  GNRL_EV_OBJECT_NOTCURED (companion)        level 3
+    100710  correlation on 100701: several distinct hosts      level 13
+-->
+<group name="kaspersky,ksc,">
+
+  <!-- Base rule: any KSC event -->
+  <rule id="100700" level="0">
+    <decoded_as>kaspersky-ksc</decoded_as>
+    <description>KSC: событие $(ksc.event_type)</description>
+  </rule>
+
+  <!-- Everything selected in KSC for export -->
+  <rule id="100709" level="10">
+    <if_sid>100700</if_sid>
+    <description>KSC: $(ksc.event_name) [$(ksc.event_type)] на $(ksc.host) ($(ksc.host_ip))</description>
+  </rule>
+
+  <!-- Refinement: malware detected -->
+  <rule id="100701" level="10">
+    <if_sid>100709</if_sid>
+    <field name="ksc.event_type">^GNRL_EV_VIRUS_FOUND$</field>
+    <description>KSC: вредоносный объект $(ksc.threat) на $(ksc.host) ($(ksc.host_ip)), пользователь $(ksc.user)</description>
+    <group>ksc_malware,</group>
+  </rule>
+
+  <!-- Exception: companion of a detection (cannot disinfect -> object deleted). Not sent to Telegram -->
+  <rule id="100702" level="3">
+    <if_sid>100709</if_sid>
+    <field name="ksc.event_type">^GNRL_EV_OBJECT_NOTCURED$</field>
+    <description>KSC: лечение невозможно, объект удалён: $(ksc.threat) на $(ksc.host)</description>
+  </rule>
+
+  <!-- Correlation: malware on several distinct hosts within 10 minutes -->
+  <rule id="100710" level="13" frequency="3" timeframe="600" ignore="1800">
+    <if_matched_sid>100701</if_matched_sid>
+    <different_field>ksc.host</different_field>
+    <description>KSC: вредоносные объекты на нескольких ПК за 10 минут - возможная эпидемия</description>
+    <group>ksc_outbreak,</group>
+  </rule>
+
+</group>

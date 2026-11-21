@@ -1,0 +1,84 @@
+<!--
+  Managed by ksc-integration-with-wazuh-siem. Do not edit on the server: changes are overwritten by deploy.sh.
+
+  Kaspersky Security Center (KSC Linux 16.x) -> Wazuh, Syslog RFC 5424 (KSC "Export to SIEM", format Syslog)
+  Example header:
+    1 <timestamp> <device-fqdn> KES|11.0.0.0 - GNRL_EV_VIRUS_FOUND [event@23668 p2="..." p5="..." et="..." hdn="..." hip="..." ...] <text>
+  23668 = IANA Private Enterprise Number of Kaspersky Lab (public identifier).
+
+  Common fields (present in every KSC event):
+    ksc.event_type  <- et      event type code (GNRL_EV_*)
+    ksc.event_name  <- etdn    localized event type name
+    ksc.host        <- hdn     device name
+    ksc.host_ip     <- hip     device IP
+    ksc.group       <- gn      KSC administration group
+    ksc.fqdn, ksc.product <- RFC 5424 header (HOSTNAME, APP-NAME)
+  Event-specific fields (p1..p9 meaning depends on event type; mapping below is valid for malware events):
+    ksc.object      <- p2      object path
+    ksc.threat      <- p5      threat name
+    ksc.user        <- p7      user
+-->
+
+<!--
+  prematch deliberately ends WITHOUT the trailing space: child regexes use offset="after_parent" and start
+  with " key=", so the first structured-data parameter (e.g. et="..." in events without p1..p9) is matched too.
+-->
+<decoder name="kaspersky-ksc">
+  <prematch type="pcre2">\[event@23668(?= )</prematch>
+</decoder>
+
+<!-- RFC 5424 header: device FQDN, product -->
+<decoder name="kaspersky-ksc-fields">
+  <parent>kaspersky-ksc</parent>
+  <regex type="pcre2">^1 \S+ (\S+) (\S+) </regex>
+  <order>ksc.fqdn, ksc.product</order>
+</decoder>
+
+<!-- Structured data: one sibling decoder per field, field order in the event does not matter -->
+<decoder name="kaspersky-ksc-fields">
+  <parent>kaspersky-ksc</parent>
+  <regex type="pcre2" offset="after_parent"> et="([^"]*)"</regex>
+  <order>ksc.event_type</order>
+</decoder>
+
+<decoder name="kaspersky-ksc-fields">
+  <parent>kaspersky-ksc</parent>
+  <regex type="pcre2" offset="after_parent"> etdn="([^"]*)"</regex>
+  <order>ksc.event_name</order>
+</decoder>
+
+<decoder name="kaspersky-ksc-fields">
+  <parent>kaspersky-ksc</parent>
+  <regex type="pcre2" offset="after_parent"> hdn="([^"]*)"</regex>
+  <order>ksc.host</order>
+</decoder>
+
+<decoder name="kaspersky-ksc-fields">
+  <parent>kaspersky-ksc</parent>
+  <regex type="pcre2" offset="after_parent"> hip="([^"]*)"</regex>
+  <order>ksc.host_ip</order>
+</decoder>
+
+<decoder name="kaspersky-ksc-fields">
+  <parent>kaspersky-ksc</parent>
+  <regex type="pcre2" offset="after_parent"> gn="([^"]*)"</regex>
+  <order>ksc.group</order>
+</decoder>
+
+<decoder name="kaspersky-ksc-fields">
+  <parent>kaspersky-ksc</parent>
+  <regex type="pcre2" offset="after_parent"> p2="([^"]*)"</regex>
+  <order>ksc.object</order>
+</decoder>
+
+<decoder name="kaspersky-ksc-fields">
+  <parent>kaspersky-ksc</parent>
+  <regex type="pcre2" offset="after_parent"> p5="([^"]*)"</regex>
+  <order>ksc.threat</order>
+</decoder>
+
+<decoder name="kaspersky-ksc-fields">
+  <parent>kaspersky-ksc</parent>
+  <regex type="pcre2" offset="after_parent"> p7="([^"]*)"</regex>
+  <order>ksc.user</order>
+</decoder>
